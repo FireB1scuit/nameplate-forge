@@ -21,7 +21,7 @@ test('builds, restyles and exports a plate', async ({ page }) => {
     page.waitForEvent('download'),
     page.getByRole('button', { name: 'Download 3MF' }).click(),
   ]);
-  expect(download.suggestedFilename()).toBe('nameplate-sergeant-vale-32mm.3mf');
+  expect(download.suggestedFilename()).toBe('nameplate-sergeant-vale-40mm.3mf');
 
   // share link restores the design in a new tab
   const hash = await page.evaluate(() => window.location.hash);

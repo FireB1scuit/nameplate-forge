@@ -3,9 +3,9 @@ import { create } from 'zustand';
 import { registerUserFont, USER_PREFIX } from '../data/fonts';
 import type { BatchOptions, ExportOptions } from '../geometry/exporter';
 import { geometry } from '../geometry/client';
-import { DEFAULT_DESIGN, sanitizeDesign, usesUserAssets, type Design } from '../state/schema';
+import { LEGACY_DEFAULTS, sanitizeDesign, usesUserAssets, type Design } from '../state/schema';
 import { useStore } from '../state/store';
-import { designToHash, diff, merge } from '../state/url';
+import { designToHash, merge } from '../state/url';
 
 interface ToastState {
   message: string | null;
@@ -185,8 +185,10 @@ export async function uploadIcon(file: File): Promise<string | null> {
 export interface SavedPreset {
   name: string;
   savedAt: number;
-  /** diff against the defaults, without line1/line2 */
-  patch: unknown;
+  /** the whole design (text lines are ignored when applying) */
+  design?: unknown;
+  /** older entries: a diff against the version-2 defaults */
+  patch?: unknown;
 }
 
 const PRESETS_KEY = 'nf.presets.v1';
@@ -218,11 +220,10 @@ function storePresets(list: SavedPreset[]): boolean {
 
 export function savePreset(name: string, design: Design): SavedPreset[] {
   const clean = structuredClone(design);
-  clean.text.line1 = DEFAULT_DESIGN.text.line1;
-  clean.text.line2 = DEFAULT_DESIGN.text.line2;
-  const patch = diff(clean, DEFAULT_DESIGN) ?? {};
+  clean.text.line1 = '';
+  clean.text.line2 = '';
   const list = loadPresets().filter((p) => p.name !== name);
-  list.unshift({ name: name.slice(0, 40), savedAt: Date.now(), patch });
+  list.unshift({ name: name.slice(0, 40), savedAt: Date.now(), design: clean });
   storePresets(list);
   return list;
 }
@@ -236,7 +237,8 @@ export function deletePreset(name: string): SavedPreset[] {
 /** Apply a preset's style and settings, keeping the current text. */
 export function applyPreset(p: SavedPreset): void {
   const { design, setDesign } = useStore.getState();
-  const next = sanitizeDesign(merge(DEFAULT_DESIGN, p.patch), { hasIcon: hasUserIcon });
+  const raw = p.design ?? { ...(merge(LEGACY_DEFAULTS, p.patch) as object), v: 2 };
+  const next = sanitizeDesign(raw, { hasIcon: hasUserIcon });
   next.text.line1 = design.text.line1;
   next.text.line2 = design.text.line2;
   setDesign(next);

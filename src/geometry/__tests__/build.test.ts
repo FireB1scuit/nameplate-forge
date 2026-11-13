@@ -2,7 +2,7 @@ import Module from 'manifold-3d';
 import type { ManifoldToplevel } from 'manifold-3d';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { FONTS } from '../../data/fonts';
-import { applyTheme, DEFAULT_DESIGN, resolveFrustum, type Design } from '../../state/schema';
+import { applyTheme, LEGACY_DEFAULTS, resolveFrustum, type Design } from '../../state/schema';
 import { buildPlate, planLayout } from '../build';
 import { createRimMap } from '../conemap';
 import { lineWidth, measureLine } from '../text';
@@ -17,7 +17,7 @@ beforeAll(async () => {
 });
 
 const variant = (patch: (d: Design) => void): Design => {
-  const d = structuredClone(DEFAULT_DESIGN);
+  const d = structuredClone(LEGACY_DEFAULTS);
   patch(d);
   return d;
 };
@@ -45,7 +45,7 @@ describe('fonts', () => {
 
 describe('planLayout', () => {
   it('fits the default design on a 32 mm base', async () => {
-    const plan = planLayout(DEFAULT_DESIGN, await fonts.get('cinzel'));
+    const plan = planLayout(LEGACY_DEFAULTS, await fonts.get('cinzel'));
     expect(plan.fit.fits).toBe(true);
     expect(plan.fit.chars).toBe(11);
     expect(plan.fit.capacity).toBeGreaterThanOrEqual(11);
@@ -85,14 +85,14 @@ describe('planLayout', () => {
   });
 
   it('flags small letters', async () => {
-    const plan = planLayout(DEFAULT_DESIGN, await fonts.get('cinzel'));
+    const plan = planLayout(LEGACY_DEFAULTS, await fonts.get('cinzel'));
     expect(plan.warnings.map((w) => w.code)).toContain('readability');
   });
 });
 
 describe('buildPlate', () => {
   const cases: Array<[string, Design]> = [
-    ['default (32 mm, Cinzel, plain)', DEFAULT_DESIGN],
+    ['default (32 mm, Cinzel, plain)', LEGACY_DEFAULTS],
     [
       'riveted 60 mm Pirata One',
       variant((d) => {
@@ -146,8 +146,8 @@ describe('buildPlate', () => {
   });
 
   it('places the back face on the rim, offset by the gap', async () => {
-    const res = await buildPlate(wasm, fonts, DEFAULT_DESIGN);
-    const map = createRimMap(resolveFrustum(DEFAULT_DESIGN.base), DEFAULT_DESIGN.plate.angleDeg);
+    const res = await buildPlate(wasm, fonts, LEGACY_DEFAULTS);
+    const map = createRimMap(resolveFrustum(LEGACY_DEFAULTS.base), LEGACY_DEFAULTS.plate.angleDeg);
     const { positions } = res.mesh;
     let minW = Infinity;
     let maxW = -Infinity;
@@ -156,23 +156,23 @@ describe('buildPlate', () => {
       minW = Math.min(minW, w);
       maxW = Math.max(maxW, w);
     }
-    const { gap, thickness } = DEFAULT_DESIGN.plate;
+    const { gap, thickness } = LEGACY_DEFAULTS.plate;
     expect(minW).toBeCloseTo(gap, 3);
-    expect(maxW).toBeCloseTo(gap + thickness + DEFAULT_DESIGN.text.depth, 2);
+    expect(maxW).toBeCloseTo(gap + thickness + LEGACY_DEFAULTS.text.depth, 2);
   });
 
   it('sits at the front of the base (−Y) by default', async () => {
-    const res = await buildPlate(wasm, fonts, DEFAULT_DESIGN);
+    const res = await buildPlate(wasm, fonts, LEGACY_DEFAULTS);
     const { min, max } = res.stats.bbox;
     expect((min[0] + max[0]) / 2).toBeCloseTo(0, 1);
     expect(max[1]).toBeLessThan(0);
     expect(min[2]).toBeGreaterThanOrEqual(-0.01);
-    expect(max[2]).toBeLessThan(DEFAULT_DESIGN.base.height + 0.5);
+    expect(max[2]).toBeLessThan(LEGACY_DEFAULTS.base.height + 0.5);
   });
 
   it('reports build time and plate size', async () => {
-    const res = await buildPlate(wasm, fonts, DEFAULT_DESIGN);
-    expect(res.stats.plate.height).toBeCloseTo(DEFAULT_DESIGN.plate.height, 6);
+    const res = await buildPlate(wasm, fonts, LEGACY_DEFAULTS);
+    expect(res.stats.plate.height).toBeCloseTo(LEGACY_DEFAULTS.plate.height, 6);
     expect(res.stats.plate.width).toBeGreaterThan(res.fit.textWidth);
     console.log(
       `default build: ${res.stats.buildMs.toFixed(0)} ms, ${res.stats.triangles} tris, ` +

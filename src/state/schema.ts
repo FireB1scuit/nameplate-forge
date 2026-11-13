@@ -3,6 +3,8 @@
  *
  * v1 (M1): round bases, line 1, raised text, Plain/Riveted theme id only.
  * v2 (M2–M5): all base shapes, line 2, text modes, thicken/align, style layers, blend/lip, fire arc.
+ * v3: same fields, new defaults (40 mm riveted scroll plate). Share links only store fields that
+ *     differ from the defaults, so links from v1/v2 are decoded against LEGACY_DEFAULTS.
  */
 import { CUSTOM_PRESET_ID, findPreset, MDF_HEIGHT, type BaseShape } from '../data/bases';
 import { DEFAULT_FONT_ID, findFont, isUserAsset } from '../data/fonts';
@@ -20,7 +22,7 @@ import {
   type ThemeId,
 } from '../data/themes';
 
-export const DESIGN_VERSION = 2 as const;
+export const DESIGN_VERSION = 3 as const;
 
 export type EdgeType = 'sloped' | 'vertical';
 export type TextMode = 'raised' | 'engraved' | 'cut';
@@ -102,14 +104,14 @@ export const DEFAULT_DESIGN: Design = {
   v: DESIGN_VERSION,
   base: {
     shape: 'round',
-    presetId: 'r32',
-    bottom: [32, 32],
-    top: [28.6, 28.6],
+    presetId: 'r40',
+    bottom: [40, 40],
+    top: [36.6, 36.6],
     height: 4,
     edge: 'sloped',
   },
   text: {
-    line1: 'BROTHER KAI',
+    line1: 'Watch captain artemis',
     line2: '',
     fontId: DEFAULT_FONT_ID,
     size1: 2.8,
@@ -117,15 +119,15 @@ export const DEFAULT_DESIGN: Design = {
     spacing: 0.3,
     uppercase: true,
     mode: 'raised',
-    depth: 0.4,
-    thicken: 0,
+    depth: 0.5,
+    thicken: 0.19,
     align: 'center',
     autoShrink: true,
   },
   plate: {
-    width: { mode: 'auto', value: 34 },
+    width: { mode: 'mm', value: 45 },
     maxDeg: 140,
-    height: 3.6,
+    height: 4.3,
     thickness: 0.8,
     padding: 1.0,
     cornerRadius: 0.6,
@@ -135,9 +137,40 @@ export const DEFAULT_DESIGN: Design = {
     blend: false,
     lip: { on: false, depth: 1.2, thickness: 0.6 },
   },
-  style: { themeId: 'plain', ...themeLayers('plain') },
+  style: {
+    themeId: 'riveted',
+    outline: 'scroll',
+    border: { type: 'single', width: 0.5, inset: 0.1 },
+    endCaps: { icon: 'cog', size: 1.9, place: 'beside' },
+    surface: 'hammered',
+  },
   extras: { fireArc: 0 },
 };
+
+/** Defaults of design versions 1–2: old share links are diffs against these. */
+export const LEGACY_DEFAULTS: Design = {
+  ...structuredClone(DEFAULT_DESIGN),
+  base: {
+    shape: 'round',
+    presetId: 'r32',
+    bottom: [32, 32],
+    top: [28.6, 28.6],
+    height: 4,
+    edge: 'sloped',
+  },
+  text: { ...DEFAULT_DESIGN.text, line1: 'BROTHER KAI', depth: 0.4, thicken: 0 },
+  plate: {
+    ...structuredClone(DEFAULT_DESIGN.plate),
+    width: { mode: 'auto', value: 34 },
+    height: 3.6,
+  },
+  style: { themeId: 'plain', ...themeLayers('plain') },
+};
+
+/** The defaults a stored diff of version `v` was made against. */
+export function defaultsForVersion(v: unknown): Design {
+  return typeof v === 'number' && v < 3 ? LEGACY_DEFAULTS : DEFAULT_DESIGN;
+}
 
 /** Slider ranges; also used to clamp untrusted input. */
 export const LIMITS = {
@@ -218,6 +251,8 @@ export const migrations: Record<number, Migration> = {
     const themeId = typeof style.themeId === 'string' ? style.themeId : 'plain';
     return { ...d, style: { themeId, ...themeLayers(themeId) } };
   },
+  // v2 -> v3 changed only the defaults; decodeDesign merges old links onto LEGACY_DEFAULTS
+  2: (d) => d,
 };
 
 export function migrate(input: Record<string, unknown>): Record<string, unknown> {

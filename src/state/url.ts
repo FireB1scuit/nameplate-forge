@@ -3,7 +3,13 @@
  * `#d=` + lz-string(JSON(diff(design, defaults))). Only non-default fields are stored.
  */
 import LZString from 'lz-string';
-import { DEFAULT_DESIGN, DESIGN_VERSION, sanitizeDesign, type Design } from './schema';
+import {
+  DEFAULT_DESIGN,
+  DESIGN_VERSION,
+  defaultsForVersion,
+  sanitizeDesign,
+  type Design,
+} from './schema';
 
 type Json = null | boolean | number | string | Json[] | { [k: string]: Json };
 
@@ -66,7 +72,11 @@ export function decodeDesign(encoded: string): Design | null {
     if (!json) return null;
     const parsed: unknown = JSON.parse(json);
     if (!isObj(parsed)) return null;
-    return sanitizeDesign(merge(DEFAULT_DESIGN, parsed));
+    // only changed fields are stored: fill the rest from the defaults of the link's version
+    const v = parsed.v ?? 1;
+    const filled = merge(defaultsForVersion(v), parsed) as Record<string, unknown>;
+    // a link with no version is from v1
+    return sanitizeDesign({ ...filled, v });
   } catch {
     return null;
   }

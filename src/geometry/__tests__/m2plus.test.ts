@@ -13,6 +13,7 @@ import { readBinaryStl } from '../../export/stl';
 import {
   applyTheme,
   DEFAULT_DESIGN,
+  LEGACY_DEFAULTS,
   resolveBase,
   sanitizeDesign,
   type Design,
@@ -36,7 +37,7 @@ beforeAll(async () => {
 });
 
 const variant = (patch: (d: Design) => void): Design => {
-  const d = structuredClone(DEFAULT_DESIGN);
+  const d = structuredClone(LEGACY_DEFAULTS);
   patch(d);
   return d;
 };
@@ -93,7 +94,7 @@ describe('themes', () => {
   }, 60_000);
 
   it('auto width grows to make room for end-caps', async () => {
-    const plain = planLayout(DEFAULT_DESIGN, await assets.get('cinzel'));
+    const plain = planLayout(LEGACY_DEFAULTS, await assets.get('cinzel'));
     const d = variant((d) => {
       d.style.endCaps = { icon: 'skull', size: 2.6, place: 'ends' };
     });
@@ -111,7 +112,7 @@ describe('text modes', () => {
     );
     solid(r);
     expect(r.mesh.paint.length).toBeGreaterThan(0);
-    expect(r.stats.plate.thickness).toBeCloseTo(DEFAULT_DESIGN.plate.thickness, 6);
+    expect(r.stats.plate.thickness).toBeCloseTo(LEGACY_DEFAULTS.plate.thickness, 6);
   });
 
   it('engraved depth is limited so the plate keeps a back', async () => {
@@ -169,7 +170,7 @@ describe('line 2, align, thicken, strokes', () => {
   });
 
   it('thicken makes the text wider in area', async () => {
-    const a = await buildPlate(wasm, assets, DEFAULT_DESIGN);
+    const a = await buildPlate(wasm, assets, LEGACY_DEFAULTS);
     const b = await buildPlate(
       wasm,
       assets,
@@ -180,7 +181,7 @@ describe('line 2, align, thicken, strokes', () => {
   });
 
   it('flags strokes thinner than the FDM minimum', async () => {
-    const r = await buildPlate(wasm, assets, DEFAULT_DESIGN, { printer: 'fdm' });
+    const r = await buildPlate(wasm, assets, LEGACY_DEFAULTS, { printer: 'fdm' });
     expect(codes(r)).toContain('thin-strokes');
     const big = await buildPlate(
       wasm,
@@ -268,7 +269,7 @@ describe('placement extras', () => {
       variant((d) => void (d.plate.blend = true)),
     );
     solid(r);
-    const map = createBaseMap(resolveBase(DEFAULT_DESIGN.base), 0);
+    const map = createBaseMap(resolveBase(LEGACY_DEFAULTS.base), 0);
     expect(r.stats.plate.height).toBeCloseTo(map.slant, 6);
   });
 
@@ -279,7 +280,7 @@ describe('placement extras', () => {
       variant((d) => void (d.plate.lip.on = true)),
     );
     solid(r);
-    expect(r.stats.bbox.max[2]).toBeGreaterThan(DEFAULT_DESIGN.base.height + 0.3);
+    expect(r.stats.bbox.max[2]).toBeGreaterThan(LEGACY_DEFAULTS.base.height + 0.3);
   });
 
   it('lip also works on an MDF edge', async () => {
@@ -296,7 +297,7 @@ describe('placement extras', () => {
   });
 
   it('fire-arc notches cut the plate; a too-small plate warns', async () => {
-    const plain = await buildPlate(wasm, assets, DEFAULT_DESIGN);
+    const plain = await buildPlate(wasm, assets, LEGACY_DEFAULTS);
     const notched = await buildPlate(
       wasm,
       assets,
@@ -327,7 +328,7 @@ describe('placement extras', () => {
 
 describe('exports', () => {
   it('flat STL lies on the bed', async () => {
-    const r = await exportDesign(wasm, assets, DEFAULT_DESIGN, {
+    const r = await exportDesign(wasm, assets, LEGACY_DEFAULTS, {
       format: 'stl',
       orientation: 'flat',
       withBase: false,
@@ -346,7 +347,7 @@ describe('exports', () => {
   });
 
   it('3MF holds a plate and a text object', async () => {
-    const r = await exportDesign(wasm, assets, DEFAULT_DESIGN, {
+    const r = await exportDesign(wasm, assets, LEGACY_DEFAULTS, {
       format: '3mf',
       orientation: 'inplace',
       withBase: true,
@@ -365,7 +366,10 @@ describe('exports', () => {
   });
 
   it('plate + base export is one solid standing on z = 0', async () => {
-    const r = await buildPlate(wasm, assets, DEFAULT_DESIGN, { withBase: true, quality: 'export' });
+    const r = await buildPlate(wasm, assets, LEGACY_DEFAULTS, {
+      withBase: true,
+      quality: 'export',
+    });
     solid(r);
     expect(r.stats.bbox.min[2]).toBeCloseTo(0, 4);
   });
@@ -448,10 +452,29 @@ describe('svg + schema', () => {
       JSON.stringify({ v: 1, style: { themeId: 'riveted' } }),
     );
     const d = decodeDesign(v1)!;
-    expect(d.v).toBe(2);
+    expect(d.v).toBe(3);
+    expect(d.base.presetId).toBe('r32');
     expect(d.style.themeId).toBe('riveted');
     expect(d.style.border.type).toBe('single');
     expect(d.style.endCaps.icon).toBe('rivet');
+  });
+
+  it('a v2 link keeps meaning what it meant (diff against the old defaults)', () => {
+    // only the line was changed in this v2 link; everything else was the old default
+    const v2 = LZString.compressToEncodedURIComponent(
+      JSON.stringify({ v: 2, text: { line1: 'KAI' } }),
+    );
+    const d = decodeDesign(v2)!;
+    expect(d.text.line1).toBe('KAI');
+    expect(d.base.presetId).toBe('r32');
+    expect(d.style.themeId).toBe('plain');
+    expect(d.plate.width.mode).toBe('auto');
+  });
+
+  it('the default design equals the shared example link', () => {
+    const link =
+      'N4IgRghgzgpiBcoAOAnGsAuBJAJgkKALAAwgA04A9hhpQLYIDaJZJAuhbUkwMwBsAOj5l+QtgF9OMAB4YEoADYBLAHYwAjPgDqEDAGMAFgAI9EJBgiqjEFBhh0lUciBwxzBhMQEBWTgaV6ANYwKp4C6gCckiBICrpwiCAA7ko4GB6JdJSu+HQMFABuEAoArgmE3tEGMEoA5gZy8IQCPNFQGACeCgmg6fYwuPgoSgUwdngUlCUYymr4UHoolAoKzmCUKK4o8iCdSAkgUKq13c4paRleviCqmGHq0SE4AMJmTokBlKHwIHqUtc4jgAvBLqAQRCixCB6A5gdCpOBtEooABm0IOBggeRgaDw0QKCAATOIgA';
+    expect(decodeDesign(link)).toEqual(DEFAULT_DESIGN);
   });
 
   it('drops unknown uploaded assets from untrusted input', () => {
@@ -459,7 +482,7 @@ describe('svg + schema', () => {
       text: { fontId: 'user:font-9' },
       style: { endCaps: { icon: 'user:icon-3' } },
     });
-    expect(d.text.fontId).toBe(DEFAULT_DESIGN.text.fontId);
+    expect(d.text.fontId).toBe(LEGACY_DEFAULTS.text.fontId);
     expect(d.style.endCaps.icon).toBe('none');
   });
 

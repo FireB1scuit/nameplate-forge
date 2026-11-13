@@ -572,3 +572,5 @@ The PNG icons are rendered from `favicon.svg`.
 - Windows note: run Vitest from an upper-case drive path (`E:\…`). A lower-case `e:` makes Vite load Vitest twice, and every suite then fails with "failed to find the runner".
 
 **Still open:** real base measurements (§6), a contrast or screen-reader audit, persisting uploaded fonts, and multiple plates per base (P2).
+
+**Defaults (v3, 2026-11-13):** the default design is now the owner's example: a 40 mm base, "Watch captain artemis", a riveted-steel scroll plate 45 mm wide and 4.3 mm tall, a 0.5 mm single border, cogs beside the text, a hammered surface, 0.5 mm text depth and 0.19 mm thicken. Share links store only what differs from the defaults, so the schema went to v3: links of versions 1–2 are decoded against `LEGACY_DEFAULTS` (the old 32 mm plain plate) and keep their meaning. Saved styles now store the whole design. The geometry tests still use the old default as a fixed fixture.

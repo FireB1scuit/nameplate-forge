@@ -77,9 +77,9 @@ describe('sanitizeDesign', () => {
     expect(d.plate.width).toEqual(DEFAULT_DESIGN.plate.width);
     expect(d.base.presetId).toBe(DEFAULT_DESIGN.base.presetId);
     expect(d.base.top).toEqual([20, 20]); // top can't exceed bottom
-    expect(d.style.themeId).toBe('plain');
+    expect(d.style.themeId).toBe(DEFAULT_DESIGN.style.themeId);
     expect(d.style.outline).toBe(DEFAULT_DESIGN.style.outline);
-    expect(d.style.border.type).toBe('none');
+    expect(d.style.border.type).toBe(DEFAULT_DESIGN.style.border.type);
     expect(d.style.border.width).toBe(1);
   });
 });
