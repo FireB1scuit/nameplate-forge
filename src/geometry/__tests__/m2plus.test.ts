@@ -1,6 +1,6 @@
 /**
  * Tests for milestones M2–M5: themes/outlines/borders/end-caps, text modes, line 2, stroke check,
- * oval + square maps, blend/lip/fire-arc, textures, exports (flat, 3MF, base, batch, sprue).
+ * oval + square maps, blend/lip/fire-arc, textures, exports (flat, 3MF, base, batch).
  */
 import { unzipSync, strFromU8 } from 'fflate';
 import Module from 'manifold-3d';
@@ -23,7 +23,6 @@ import LZString from 'lz-string';
 import { createBaseMap } from '../basemap';
 import { buildPlate, planLayout, type BuildResult } from '../build';
 import { exportBatch, exportDesign } from '../exporter';
-import { buildSprue } from '../sprue';
 import { parseSvg, pathToPolygons } from '../svg';
 import { createOvalMap, createPlaneMap } from '../surfacemaps';
 import { nodeFontProvider } from './nodeFonts';
@@ -377,58 +376,12 @@ describe('exports', () => {
   it('batch ZIP has one file per name', async () => {
     const designs = ['KAI', 'TARUS', 'VEL'].map((n) => variant((d) => void (d.text.line1 = n)));
     const r = await exportBatch(wasm, assets, designs, {
-      mode: 'zip',
       format: 'stl',
       orientation: 'flat',
       printer: 'resin',
     });
     expect(Object.keys(unzipSync(r.data))).toHaveLength(3);
   });
-
-  it('sprue joins plates, frame and gates into one solid', async () => {
-    const plates = [];
-    for (const n of ['KAI', 'TARUS']) {
-      const r = await buildPlate(
-        wasm,
-        assets,
-        variant((d) => void (d.text.line1 = n)),
-        {
-          keepManifold: true,
-          strokeCheck: false,
-        },
-      );
-      const R = rotationToZ(r.normal);
-      plates.push(
-        r.manifold!.transform([
-          R[0][0],
-          R[1][0],
-          R[2][0],
-          0,
-          R[0][1],
-          R[1][1],
-          R[2][1],
-          0,
-          R[0][2],
-          R[1][2],
-          R[2][2],
-          0,
-          0,
-          0,
-          0,
-          1,
-        ]),
-      );
-      r.manifold!.delete();
-    }
-    const s = buildSprue(wasm, plates);
-    expect(s.status()).toBe('NoError');
-    const parts = s.decompose();
-    expect(parts).toHaveLength(1);
-    parts.forEach((p) => p.delete());
-    expect(s.boundingBox().min[2]).toBeGreaterThanOrEqual(-1e-6);
-    s.delete();
-    plates.forEach((p) => p.delete());
-  }, 30_000);
 });
 
 describe('svg + schema', () => {

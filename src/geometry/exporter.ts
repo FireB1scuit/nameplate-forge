@@ -1,12 +1,12 @@
 /**
  * Export pipeline (plan.md §3.6, §5.9): STL / 3MF, in place or flat for printing, optionally with
- * the base, and batch exports (ZIP of files or one sprue). Pure, so it runs in the worker and in
+ * the base, and batch exports (a ZIP of files). Pure, so it runs in the worker and in
  * Node tests.
  */
 import { zipSync } from 'fflate';
 import type { ManifoldToplevel } from 'manifold-3d';
 import { getTheme } from '../data/themes';
-import { orientFlat, orientFlatMany, rotationMat4 } from '../export/orient';
+import { orientFlat, orientFlatMany } from '../export/orient';
 import { writeBinaryStl } from '../export/stl';
 import { write3mf, type MeshPart } from '../export/threemf';
 import { resolveBase, type Design } from '../state/schema';
@@ -20,7 +20,6 @@ import {
   type FontProvider,
   type Printer,
 } from './build';
-import { buildSprue } from './sprue';
 
 export type ExportFormat = 'stl' | '3mf';
 export type Orientation = 'inplace' | 'flat';
@@ -176,7 +175,6 @@ export async function planBatch(assets: FontProvider, designs: Design[]): Promis
 }
 
 export interface BatchOptions {
-  mode: 'zip' | 'sprue';
   format: ExportFormat;
   orientation: Orientation;
   printer: Printer;
@@ -188,61 +186,27 @@ export async function exportBatch(
   designs: Design[],
   opts: BatchOptions,
   onProgress?: (done: number, total: number) => void,
-): Promise<{ data: Uint8Array; ext: 'zip' | 'stl'; mime: string; count: number }> {
-  if (opts.mode === 'zip') {
-    const files: Record<string, Uint8Array> = {};
-    const used = new Set<string>();
-    for (let i = 0; i < designs.length; i++) {
-      const d = designs[i];
-      const r = await exportDesign(wasm, assets, d, {
-        format: opts.format,
-        orientation: opts.orientation,
-        withBase: false,
-        printer: opts.printer,
-      });
-      let name = `${String(i + 1).padStart(2, '0')}-${baseFileName(d)}.${r.ext}`;
-      while (used.has(name)) name = name.replace(/(\.\w+)$/, '-x$1');
-      used.add(name);
-      files[name] = r.data;
-      onProgress?.(i + 1, designs.length);
-    }
-    return {
-      data: zipSync(files, { level: 6 }),
-      ext: 'zip',
-      mime: 'application/zip',
-      count: designs.length,
-    };
+): Promise<{ data: Uint8Array; ext: 'zip'; mime: string; count: number }> {
+  const files: Record<string, Uint8Array> = {};
+  const used = new Set<string>();
+  for (let i = 0; i < designs.length; i++) {
+    const d = designs[i];
+    const r = await exportDesign(wasm, assets, d, {
+      format: opts.format,
+      orientation: opts.orientation,
+      withBase: false,
+      printer: opts.printer,
+    });
+    let name = `${String(i + 1).padStart(2, '0')}-${baseFileName(d)}.${r.ext}`;
+    while (used.has(name)) name = name.replace(/(\.\w+)$/, '-x$1');
+    used.add(name);
+    files[name] = r.data;
+    onProgress?.(i + 1, designs.length);
   }
-
-  // sprue: build each plate, orient flat, then frame + gates
-  const manifolds = [];
-  try {
-    for (let i = 0; i < designs.length; i++) {
-      const res = await buildPlate(wasm, assets, designs[i], {
-        quality: 'export',
-        printer: opts.printer,
-        strokeCheck: false,
-        keepManifold: true,
-      });
-      const m = res.manifold!;
-      manifolds.push(m.transform(rotationMat4(res.normal)));
-      m.delete();
-      onProgress?.(i + 1, designs.length + 1);
-    }
-    const sprue = buildSprue(wasm, manifolds);
-    const mesh = sprue.getMesh();
-    const np = mesh.numProp;
-    const pos = new Float32Array((mesh.vertProperties.length / np) * 3);
-    for (let i = 0; i < pos.length / 3; i++) {
-      pos[i * 3] = mesh.vertProperties[i * np];
-      pos[i * 3 + 1] = mesh.vertProperties[i * np + 1];
-      pos[i * 3 + 2] = mesh.vertProperties[i * np + 2];
-    }
-    const stl = writeBinaryStl(pos, new Uint32Array(mesh.triVerts));
-    sprue.delete();
-    onProgress?.(designs.length + 1, designs.length + 1);
-    return { data: u8(stl), ext: 'stl', mime: 'model/stl', count: designs.length };
-  } finally {
-    manifolds.forEach((m) => m.delete());
-  }
+  return {
+    data: zipSync(files, { level: 6 }),
+    ext: 'zip',
+    mime: 'application/zip',
+    count: designs.length,
+  };
 }

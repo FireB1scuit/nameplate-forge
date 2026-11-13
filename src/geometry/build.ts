@@ -57,8 +57,6 @@ export interface BuildOptions {
   withBase?: boolean;
   /** run the thin-stroke analysis (default: on) */
   strokeCheck?: boolean;
-  /** return the final manifold (caller must delete it) */
-  keepManifold?: boolean;
 }
 
 export interface FitInfo {
@@ -138,7 +136,6 @@ export interface BuildResult {
   warnings: BuildWarning[];
   /** outward rim normal at the plate centre (flat-for-print orientation) */
   normal: Vec3;
-  manifold?: Manifold;
 }
 
 /** Below this letter height the print check warns about readability. */
@@ -515,7 +512,6 @@ function normaliseOptions(o: Quality | BuildOptions | undefined): Required<Build
     parts: base.parts ?? false,
     withBase: base.withBase ?? false,
     strokeCheck: base.strokeCheck ?? true,
-    keepManifold: base.keepManifold ?? false,
   };
 }
 
@@ -961,7 +957,6 @@ export async function buildPlate(
     const plateWidth = 2 * (rect.halfU + plan.ext);
     const raisedAny = (mode === 'raised' && glyphSets.length > 0) || detailSolids.length > 0;
     const normal = map.normalAt(0);
-    const manifold = opt.keepManifold ? finalSolid.translate([0, 0, 0]) : undefined;
 
     return {
       mesh,
@@ -969,7 +964,6 @@ export async function buildPlate(
       fit: plan.fit,
       warnings,
       normal,
-      manifold,
       stats: {
         status,
         watertight,

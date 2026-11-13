@@ -73,7 +73,7 @@ const assets: FontProvider = {
   },
 };
 
-export interface BuildResponse extends Omit<BuildResult, 'manifold'> {
+export interface BuildResponse extends BuildResult {
   id: number;
 }
 

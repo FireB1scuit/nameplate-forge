@@ -173,7 +173,6 @@ function BatchDialog() {
   const setDesign = useStore((s) => s.setDesign);
   const [text, setText] = useState('Brother Kai, Sergeant\nBrother Tarus\nBrother Vel, Veteran');
   const [checks, setChecks] = useState<BatchRow[] | null>(null);
-  const [mode, setMode] = useState<'zip' | 'sprue'>('zip');
   const [format, setFormat] = useState<ExportFormat>('stl');
   const [orientation, setOrientation] = useState<Orientation>('flat');
   const [progress, setProgress] = useState<[number, number] | null>(null);
@@ -206,7 +205,7 @@ function BatchDialog() {
   const run = async () => {
     setProgress([0, designs.length]);
     try {
-      await exportBatchFile(designs, { mode, format, orientation, printer }, (d, t) =>
+      await exportBatchFile(designs, { format, orientation, printer }, (d, t) =>
         setProgress([d, t]),
       );
     } catch (e) {
@@ -242,11 +241,7 @@ function BatchDialog() {
             disabled={!rows.length || !!progress}
             onClick={() => void run()}
           >
-            {progress
-              ? `Forging ${progress[0]}/${progress[1]}…`
-              : mode === 'sprue'
-                ? `Download sprue (${rows.length})`
-                : `Download ZIP (${rows.length})`}
+            {progress ? `Forging ${progress[0]}/${progress[1]}…` : `Download ZIP (${rows.length})`}
           </Chip>
         </>
       }
@@ -310,32 +305,14 @@ function BatchDialog() {
       </div>
       <div className="grid cols-2 gap-12">
         <Seg
-          label="Output"
-          value={mode}
-          onChange={setMode}
+          label="Files"
+          value={format}
+          onChange={setFormat}
           options={[
-            ['zip', 'ZIP of files'],
-            ['sprue', 'One print sprue'],
+            ['stl', 'STL'],
+            ['3mf', '3MF'],
           ]}
         />
-        {mode === 'zip' ? (
-          <Seg
-            label="Files"
-            value={format}
-            onChange={setFormat}
-            options={[
-              ['stl', 'STL'],
-              ['3mf', '3MF'],
-            ]}
-          />
-        ) : (
-          <p className="note">
-            The sprue lays the plates flat in a frame of 1.2 mm bars with 0.5 mm gates: print it in
-            one go and clip the plates off.
-          </p>
-        )}
-      </div>
-      {mode === 'zip' && (
         <Seg
           label="Orientation"
           value={orientation}
@@ -345,7 +322,7 @@ function BatchDialog() {
             ['flat', 'Flat for printing'],
           ]}
         />
-      )}
+      </div>
     </Modal>
   );
 }
@@ -464,7 +441,6 @@ function HelpDialog() {
         </ul>
         <h3>5. Paint</h3>
         <ul>
-          <li>Paint plates while still on the sprue (use the batch sprue), then clip and glue.</li>
           <li>Raised text: paint the plate, then drybrush or carefully edge the letters.</li>
           <li>
             Engraved text: base coat, then run a dark wash into the letters and wipe the surface.

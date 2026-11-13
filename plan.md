@@ -118,7 +118,7 @@ Ship these themes: **Plain, Riveted Iron, Gothic Imperial, Scroll Banner, Monume
 | Plate + base as one solid | P1 |
 | 3MF with plate and text as separate objects (multi-colour) | P1 |
 | Two-part ZIP: plate with recess + text insert | P2 |
-| **Print sprue**: several plates on one frame with thin gates | P1 |
+| ~~**Print sprue**: several plates on one frame with thin gates~~ | removed |
 | Printer profile: Resin (min feature 0.3 mm) / FDM (0.8 mm) drives warnings | P1 |
 
 ### 3.7 Workflow
@@ -127,7 +127,7 @@ Ship these themes: **Plain, Riveted Iron, Gothic Imperial, Scroll Banner, Monume
 | **Share link:** whole design stored in the URL hash | P0 |
 | Undo/redo | P1 |
 | Saved presets ("My Ultramarine squad style") in localStorage | P1 |
-| **Batch / squad mode:** paste "Name, Rank" lines → per-plate fit check → ZIP of STLs or one sprue STL | P1 |
+| **Batch / squad mode:** paste "Name, Rank" lines → per-plate fit check → ZIP of STL/3MF files | P1 |
 | Installable / offline (PWA) | P2 |
 
 ---
@@ -207,7 +207,6 @@ Use exact pinned versions in `package.json`.
 │  │  ├─ border.ts, endcaps.ts, surface.ts
 │  │  ├─ conemap.ts          # rim mapping math (§5.3)
 │  │  ├─ baseSolid.ts        # base as a lathe/oval solid
-│  │  ├─ sprue.ts            # flat layout + gates
 │  │  └─ checks.ts           # watertight, min stroke, readability, stats
 │  ├─ export/
 │  │  ├─ stl.ts, threemf.ts, zip.ts
@@ -323,7 +322,7 @@ type UIState = { camera: 'front'|'side'|'top'|'iso'; showBase: boolean; showFigu
 - **STL:** binary, written straight from the manifold mesh (normals computed per triangle). Units are mm.
 - **3MF:** `3D/3dmodel.model` XML with one `<object>` per part (plate, text) + `<build>` items, `[Content_Types].xml`, `_rels/.rels`, zipped with fflate. Slicers (Bambu/Orca/Prusa) see the parts as separate objects, so you can assign filaments.
 - **Flat-for-print orientation:** apply the inverse map, i.e. export the **pre-warp** flat solid. It's printable flat but won't match the rim curvature. Instead, rotate the warped solid so its back face sits on the bed. Rotate so the plate's central back normal points −Z, then drop to Z=0.
-- **Sprue:** grid-layout N flat-oriented plates. Add a rectangular frame (1.2 × 1.2 mm bars) and gates (0.5 mm Ø stubs) at plate ends. Union everything into one solid.
+- ~~**Sprue:**~~ *(removed 2026-11-13, see §14)* grid-layout N flat-oriented plates. Add a rectangular frame (1.2 × 1.2 mm bars) and gates (0.5 mm Ø stubs) at plate ends. Union everything into one solid.
 
 ### 5.10 Deployment
 - `vite.config.ts`: `base: '/<repo>/'`. Configure the worker as an ES module. Import the manifold wasm via `?url` and pass it to `locateFile`.
@@ -407,8 +406,8 @@ type UIState = { camera: 'front'|'side'|'top'|'iso'; showBase: boolean; showFigu
 - [x] Ruler / dimension overlay, figure silhouette — *built from primitives in code, not a GLB*
 
 ### M4: Power features (≈ 1 week)
-- [x] Batch mode: paste list → table with per-row fit → ZIP / sprue
-- [x] Flat-for-print orientation, sprue generator
+- [x] Batch mode: paste list → table with per-row fit → ZIP
+- [x] Flat-for-print orientation — *sprue generator built, then removed at the owner's request*
 - [x] 3MF multi-part export
 - [x] Undo/redo, saved presets — *undo/redo in the store (M1); saved styles in localStorage*
 - [x] Printer profiles (resin/FDM) drive defaults + warnings
@@ -419,7 +418,7 @@ type UIState = { camera: 'front'|'side'|'top'|'iso'; showBase: boolean; showFigu
 - [x] PWA/offline
 - [x] Screenshot PNG, auto-rotate
 - [x] Accessibility pass (keyboard on all controls, labels, contrast) — *labels, radio groups, focus-trapped dialogs, 44 px touch targets; no screen-reader or contrast audit tool was run*
-- [x] Docs page: "how to print and attach" (resin/FDM settings, glue tips, paint-on-sprue) — *an in-app dialog (the ? button), with the licences*
+- [x] Docs page: "how to print and attach" (resin/FDM settings, glue tips) — *an in-app dialog (the ? button), with the licences*
 
 ---
 
@@ -551,7 +550,6 @@ Recorded 2026-11-13. As in §13, the plan above stays the spec and these notes c
 - Flat-for-print rotates the plate so its central outward normal points +Z, then drops it to z = 0.
 - Plate + base unions with a convex hull of the base rings, using a −0.05 mm gap so the two fuse.
 - The 3MF base is a third object.
-- Sprue: plates in one column, a frame of 1.2 mm bars, and capsule gates (hull of two 0.5 mm spheres).
 - Batch is limited to 60 rows.
 
 **Figure / ruler:**
@@ -574,3 +572,5 @@ The PNG icons are rendered from `favicon.svg`.
 **Still open:** real base measurements (§6), a contrast or screen-reader audit, persisting uploaded fonts, and multiple plates per base (P2).
 
 **Defaults (v3, 2026-11-13):** the default design is now the owner's example: a 40 mm base, "Watch captain artemis", a riveted-steel scroll plate 45 mm wide and 4.3 mm tall, a 0.5 mm single border, cogs beside the text, a hammered surface, 0.5 mm text depth and 0.19 mm thicken. Share links store only what differs from the defaults, so the schema went to v3: links of versions 1–2 are decoded against `LEGACY_DEFAULTS` (the old 32 mm plain plate) and keep their meaning. Saved styles now store the whole design. The geometry tests still use the old default as a fixed fixture.
+
+**Sprue removed (2026-11-13):** the owner judged the print sprue unnecessary, so it was taken out (generator, batch option, tests). Squad batch now always downloads a ZIP of STL or 3MF files.

@@ -14,7 +14,7 @@ A free, browser-only tool for making 3D-printable nameplates that fit the rim of
 - Live 3D view: camera presets, painted preview, 28 mm figure for scale, ruler, PNG screenshot
 - Print check: watertight, thin strokes for your printer (resin/FDM), readability, with one-click fixes
 - Export STL or 3MF (plate and text as separate parts), in place or flat for printing, with or without the base
-- Squad batch: paste names → per-plate fit check → ZIP or one print sprue
+- Squad batch: paste names → per-plate fit check → ZIP of STL/3MF files
 - Share links, undo/redo, saved styles, works offline once loaded
 
 ## Development

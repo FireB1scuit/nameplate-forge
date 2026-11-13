@@ -90,7 +90,7 @@ export async function exportBatchFile(
   onProgress: (done: number, total: number) => void,
 ): Promise<void> {
   const r = await geometry().exportBatch(designs, opts, Comlink.proxy(onProgress));
-  const name = opts.mode === 'sprue' ? 'nameplate-sprue.stl' : 'nameplates.zip';
+  const name = 'nameplates.zip';
   download(asBlob(r.data, r.mime), name);
   toast(`${name} downloaded (${r.summary}, ${Math.round(r.data.byteLength / 1024)} KB)`);
 }

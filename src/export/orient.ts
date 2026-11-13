@@ -3,8 +3,6 @@
  * its centre points up (+Z) — the back face then faces the bed — and drop it onto Z = 0, centred
  * on the origin.
  */
-import type { Mat4 } from 'manifold-3d';
-
 export type V3 = [number, number, number];
 
 /** Rotation matrix (row-major 3×3) that maps unit vector `n` onto +Z. */
@@ -77,27 +75,4 @@ export function orientFlatMany(list: Float32Array[], normal: V3): Float32Array[]
 /** Rotate so `normal` → +Z, then centre in XY and put the lowest point on Z = 0. */
 export function orientFlat(positions: Float32Array, normal: V3): Float32Array {
   return orientFlatMany([positions], normal)[0];
-}
-
-/** The same rotation as a manifold Mat4 (column-major). */
-export function rotationMat4(normal: V3): Mat4 {
-  const R = rotationToZ(normal);
-  return [
-    R[0][0],
-    R[1][0],
-    R[2][0],
-    0,
-    R[0][1],
-    R[1][1],
-    R[2][1],
-    0,
-    R[0][2],
-    R[1][2],
-    R[2][2],
-    0,
-    0,
-    0,
-    0,
-    1,
-  ];
 }
