@@ -1,0 +1,37 @@
+name: Base measurement correction
+description: Share caliper measurements of a real base so the presets stop being estimates.
+title: 'Base measurement: '
+labels: ['base-measurements']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks! Measure with calipers, ideally a few bases of the same size, and give the average in mm.
+  - type: input
+    id: base
+    attributes:
+      label: Base (e.g. "32 mm round, Citadel")
+    validations:
+      required: true
+  - type: input
+    id: bottom
+    attributes:
+      label: Bottom size (mm) — diameter, or width × depth
+    validations:
+      required: true
+  - type: input
+    id: top
+    attributes:
+      label: Top size (mm) — the flat top surface
+    validations:
+      required: true
+  - type: input
+    id: height
+    attributes:
+      label: Rim height (mm)
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes (how many bases measured, manufacturer, photos)

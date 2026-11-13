@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { FONTS } from '../../data/fonts';
 import type { FontProvider } from '../build';
+import { iconFromSvg } from '../endcaps';
 import { parseFont, type LoadedFont } from '../text';
 
 /** Font provider for tests: reads the bundled fonts from public/fonts. */
@@ -18,6 +19,11 @@ export function nodeFontProvider(): FontProvider {
       const lf = parseFont(id, ab, entry.variation);
       cache.set(id, lf);
       return lf;
+    },
+    async icon(id) {
+      const file = path.resolve('public/endcaps', `${id}.svg`);
+      if (!fs.existsSync(file)) return null;
+      return iconFromSvg(id, fs.readFileSync(file, 'utf8'));
     },
   };
 }

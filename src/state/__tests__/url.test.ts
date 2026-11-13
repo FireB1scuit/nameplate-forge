@@ -67,7 +67,7 @@ describe('sanitizeDesign', () => {
       text: { size1: 999, line1: 'A\u0000B', fontId: 'comic-sans', uppercase: 'yes' },
       plate: { gap: -4, width: { mode: 'weird', value: 'x' } },
       base: { presetId: 'nope', bottom: [20, 20], top: [50, 50] },
-      style: { themeId: 'gothic' },
+      style: { themeId: 'nope', outline: 'blob', border: { type: 'zigzag', width: 99 } },
     });
     expect(d.text.size1).toBe(8);
     expect(d.text.line1).toBe('AB');
@@ -78,5 +78,8 @@ describe('sanitizeDesign', () => {
     expect(d.base.presetId).toBe(DEFAULT_DESIGN.base.presetId);
     expect(d.base.top).toEqual([20, 20]); // top can't exceed bottom
     expect(d.style.themeId).toBe('plain');
+    expect(d.style.outline).toBe(DEFAULT_DESIGN.style.outline);
+    expect(d.style.border.type).toBe('none');
+    expect(d.style.border.width).toBe(1);
   });
 });

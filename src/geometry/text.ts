@@ -207,10 +207,11 @@ export function sizeForWidth(
 }
 
 /**
- * Lay a line out along the baseline circle at slant height `vBaseline`, centred on arc 0.
- * Returns flat-space contours (all glyphs; overlapping contours are fine with NonZero fill).
+ * Lay a line out along the baseline circle at slant height `vBaseline`, centred on arc `offset`
+ * (0 = plate centre). Returns flat-space contours grouped per glyph (overlapping contours are fine
+ * with NonZero fill).
  */
-export function layoutLineOnArc(
+export function layoutGlyphsOnArc(
   lf: LoadedFont,
   m: LineMetrics,
   size: number,
@@ -218,11 +219,12 @@ export function layoutLineOnArc(
   map: RimMap,
   vBaseline: number,
   tol = 0.01,
-): Vec2[][] {
+  offset = 0,
+): Array<{ index: number; contours: Vec2[][] }> {
   const scale = size / lf.capHeight; // font units -> mm
   const width = lineWidth(lf, m, size, spacing);
-  const contours: Vec2[][] = [];
-  let pen = -width / 2;
+  const out: Array<{ index: number; contours: Vec2[][] }> = [];
+  let pen = offset - width / 2;
   for (let i = 0; i < m.glyphs.length; i++) {
     const shape = glyphShape(lf, m.glyphs[i]);
     const adv = shape.advance * scale;
@@ -231,6 +233,7 @@ export function layoutLineOnArc(
       const f = map.frameAt(centre, vBaseline);
       const c = Math.cos(f.rot);
       const s = Math.sin(f.rot);
+      const contours: Vec2[][] = [];
       for (const poly of flattenCommands(shape.commands, scale, tol)) {
         contours.push(
           poly.map(([gx, gy]): Vec2 => {
@@ -239,8 +242,25 @@ export function layoutLineOnArc(
           }),
         );
       }
+      if (contours.length) out.push({ index: i, contours });
     }
     pen += m.advances[i] * scale + spacing;
   }
-  return contours;
+  return out;
+}
+
+/** All glyph contours of a line, flattened into one list. */
+export function layoutLineOnArc(
+  lf: LoadedFont,
+  m: LineMetrics,
+  size: number,
+  spacing: number,
+  map: RimMap,
+  vBaseline: number,
+  tol = 0.01,
+  offset = 0,
+): Vec2[][] {
+  return layoutGlyphsOnArc(lf, m, size, spacing, map, vBaseline, tol, offset).flatMap(
+    (g) => g.contours,
+  );
 }

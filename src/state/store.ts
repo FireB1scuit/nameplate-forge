@@ -10,11 +10,24 @@ import { designFromHash } from './url';
 export type CameraPreset = 'front' | 'side' | 'top' | 'iso' | 'fit';
 export type MobileTab = 'base' | 'text' | 'style' | 'plate';
 
+export type DialogId = 'themes' | 'export' | 'batch' | 'presets' | 'help' | null;
+
 export interface UiState {
   showBase: boolean;
   wireframe: boolean;
+  /** text, border and icons in a contrasting paint colour */
+  painted: boolean;
+  /** 28 mm figure silhouette for scale */
+  showFigure: boolean;
+  /** width / height dimensions on the plate */
+  showRuler: boolean;
+  /** slow auto-rotate when idle */
+  autoRotate: boolean;
   printer: 'resin' | 'fdm';
   mobileTab: MobileTab;
+  dialog: DialogId;
+  /** bumps when an uploaded font/icon is registered, so lists re-render and builds re-run */
+  assetsVersion: number;
   /** last requested camera preset; `nonce` changes on every request so repeats re-trigger */
   camera: { preset: CameraPreset; nonce: number };
 }
@@ -52,6 +65,15 @@ export interface Store {
 const HISTORY_LIMIT = 100;
 const COALESCE_MS = 800;
 
+const PRINTER_KEY = 'nf.printer';
+function initialPrinter(): 'resin' | 'fdm' {
+  try {
+    return localStorage.getItem(PRINTER_KEY) === 'fdm' ? 'fdm' : 'resin';
+  } catch {
+    return 'resin';
+  }
+}
+
 function initialDesign(): Design {
   if (typeof window !== 'undefined') {
     const fromUrl = designFromHash(window.location.hash);
@@ -65,8 +87,14 @@ export const useStore = create<Store>()((set, get) => ({
   ui: {
     showBase: true,
     wireframe: false,
-    printer: 'resin',
+    painted: false,
+    showFigure: false,
+    showRuler: false,
+    autoRotate: false,
+    printer: initialPrinter(),
     mobileTab: 'text',
+    dialog: null,
+    assetsVersion: 0,
     camera: { preset: 'front', nonce: 0 },
   },
   build: { status: 'idle', result: null, error: null },
@@ -135,6 +163,13 @@ export const useStore = create<Store>()((set, get) => ({
   },
 
   setUi(patch) {
+    if (patch.printer) {
+      try {
+        localStorage.setItem(PRINTER_KEY, patch.printer);
+      } catch {
+        /* storage blocked: the choice just isn't remembered */
+      }
+    }
     set({ ui: { ...get().ui, ...patch } });
   },
 

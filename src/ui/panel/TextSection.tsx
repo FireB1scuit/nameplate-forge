@@ -1,6 +1,8 @@
-import { FONTS } from '../../data/fonts';
-import { LIMITS, MAX_TEXT_LENGTH } from '../../state/schema';
+import { useRef } from 'react';
+import { FONTS, userFontList } from '../../data/fonts';
+import { LIMITS, MAX_TEXT_LENGTH, type TextMode } from '../../state/schema';
 import { useStore } from '../../state/store';
+import { uploadFont } from '../actions';
 import { Check, Chip, Section, Slider } from '../components/controls';
 
 /** "11 / 16 chars fit" — from the measured text width reported by the worker. */
@@ -12,6 +14,11 @@ export function FitBadge({ long = false }: { long?: boolean }) {
     return <span className="note">Up to ~{fit.capacity} chars fit</span>;
   }
   const where = long ? ` on a ${bottom} mm base` : '';
+  if (fit.fits && fit.shrunk) {
+    return (
+      <span className="note">Sized to {fit.sizeUsed.toFixed(1)} mm to fit the plate height</span>
+    );
+  }
   if (fit.fits) {
     return (
       <span className="note ok">
@@ -29,10 +36,20 @@ export function FitBadge({ long = false }: { long?: boolean }) {
   );
 }
 
+const MODES: Array<[TextMode, string, string]> = [
+  ['raised', 'Raised', 'Letters stand up from the plate'],
+  ['engraved', 'Engraved', 'Letters are cut into the plate (easy to paint with a wash)'],
+  ['cut', 'Cut-through', 'Letters are holes through the plate'],
+];
+
 export function TextSection({ compact = false }: { compact?: boolean }) {
   const text = useStore((s) => s.design.text);
+  const fixedWidth = useStore((s) => s.design.plate.width.mode !== 'auto');
+  useStore((s) => s.ui.assetsVersion); // re-render when a font is uploaded
   const update = useStore((s) => s.update);
+  const fileRef = useRef<HTMLInputElement>(null);
   const fontLabelId = 'font-picker-label';
+  const fonts = [...FONTS, ...userFontList()];
 
   return (
     <Section title={compact ? null : '2 · Text'} aside={<FitBadge long={compact} />}>
@@ -47,11 +64,23 @@ export function TextSection({ compact = false }: { compact?: boolean }) {
           onChange={(e) => update((d) => void (d.text.line1 = e.target.value), 'text.line1')}
         />
       </label>
+      <label className="control">
+        Line 2 (rank or title, optional)
+        <input
+          className="field"
+          value={text.line2}
+          maxLength={MAX_TEXT_LENGTH}
+          spellCheck={false}
+          autoComplete="off"
+          placeholder="e.g. Sergeant"
+          onChange={(e) => update((d) => void (d.text.line2 = e.target.value), 'text.line2')}
+        />
+      </label>
 
       <div className="control">
         <span id={fontLabelId}>Font</span>
         <div className="grid cols-2" role="radiogroup" aria-labelledby={fontLabelId}>
-          {FONTS.map((f) => (
+          {fonts.map((f) => (
             <Chip
               key={f.id}
               role="radio"
@@ -65,7 +94,27 @@ export function TextSection({ compact = false }: { compact?: boolean }) {
               {f.name}
             </Chip>
           ))}
+          <Chip
+            className="font-option upload"
+            title="Use a .ttf or .otf from your computer. It is read on this device and never uploaded."
+            onClick={() => fileRef.current?.click()}
+          >
+            + Your font…
+          </Chip>
         </div>
+        <input
+          ref={fileRef}
+          type="file"
+          accept=".ttf,.otf,.woff,font/ttf,font/otf"
+          className="sr-only"
+          tabIndex={-1}
+          aria-hidden="true"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) void uploadFont(f);
+            e.target.value = '';
+          }}
+        />
       </div>
 
       <div className="grid cols-2 gap-12">
@@ -85,6 +134,24 @@ export function TextSection({ compact = false }: { compact?: boolean }) {
           step={0.05}
           onChange={(v) => update((d) => void (d.text.spacing = v), 'text.spacing')}
         />
+        {text.line2.trim() && (
+          <Slider
+            label="Line 2 height"
+            value={text.size2}
+            min={LIMITS.size2[0]}
+            max={LIMITS.size2[1]}
+            step={0.1}
+            onChange={(v) => update((d) => void (d.text.size2 = v), 'text.size2')}
+          />
+        )}
+        <Slider
+          label="Thicken strokes"
+          value={text.thicken}
+          min={LIMITS.thicken[0]}
+          max={LIMITS.thicken[1]}
+          step={0.01}
+          onChange={(v) => update((d) => void (d.text.thicken = v), 'text.thicken')}
+        />
       </div>
 
       <div className="grid cols-2">
@@ -100,24 +167,51 @@ export function TextSection({ compact = false }: { compact?: boolean }) {
         />
       </div>
 
-      <div className="grid cols-3" role="group" aria-label="Text mode">
-        <Chip on>Raised</Chip>
-        <Chip disabled title="Engraved text arrives with the style update (M2)">
-          Engraved
-        </Chip>
-        <Chip disabled title="Cut-through text arrives with the style update (M2)">
-          {compact ? 'Cut' : 'Cut-through'}
-        </Chip>
+      <div className="grid cols-3" role="radiogroup" aria-label="Text mode">
+        {MODES.map(([id, label, hint]) => (
+          <Chip
+            key={id}
+            role="radio"
+            aria-checked={text.mode === id}
+            aria-pressed={undefined}
+            className={text.mode === id ? 'on' : ''}
+            title={hint}
+            onClick={() => update((d) => void (d.text.mode = id), 'text.mode')}
+          >
+            {compact && id === 'cut' ? 'Cut' : label}
+          </Chip>
+        ))}
       </div>
 
-      <Slider
-        label="Text depth"
-        value={text.depth}
-        min={LIMITS.depth[0]}
-        max={LIMITS.depth[1]}
-        step={0.05}
-        onChange={(v) => update((d) => void (d.text.depth = v), 'text.depth')}
-      />
+      <div className="grid cols-2 gap-12">
+        <Slider
+          label={text.mode === 'engraved' ? 'Engrave depth' : 'Text depth'}
+          value={text.depth}
+          min={LIMITS.depth[0]}
+          max={LIMITS.depth[1]}
+          step={0.05}
+          disabled={text.mode === 'cut'}
+          onChange={(v) => update((d) => void (d.text.depth = v), 'text.depth')}
+        />
+        <div className="control">
+          <span>Align{fixedWidth ? '' : ' (fixed width)'}</span>
+          <div className="grid cols-3" role="radiogroup" aria-label="Text alignment">
+            {(['left', 'center', 'right'] as const).map((a) => (
+              <Chip
+                key={a}
+                role="radio"
+                aria-checked={text.align === a}
+                aria-pressed={undefined}
+                className={`slim${text.align === a ? ' on' : ''}`}
+                aria-label={`Align ${a}`}
+                onClick={() => update((d) => void (d.text.align = a), 'text.align')}
+              >
+                {a === 'left' ? 'L' : a === 'center' ? 'C' : 'R'}
+              </Chip>
+            ))}
+          </div>
+        </div>
+      </div>
     </Section>
   );
 }

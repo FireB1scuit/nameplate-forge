@@ -2,7 +2,7 @@ import Module from 'manifold-3d';
 import type { ManifoldToplevel } from 'manifold-3d';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { FONTS } from '../../data/fonts';
-import { DEFAULT_DESIGN, resolveFrustum, type Design } from '../../state/schema';
+import { applyTheme, DEFAULT_DESIGN, resolveFrustum, type Design } from '../../state/schema';
 import { buildPlate, planLayout } from '../build';
 import { createRimMap } from '../conemap';
 import { lineWidth, measureLine } from '../text';
@@ -96,7 +96,7 @@ describe('buildPlate', () => {
     [
       'riveted 60 mm Pirata One',
       variant((d) => {
-        d.style.themeId = 'riveted';
+        applyTheme(d, 'riveted');
         d.base.presetId = 'r60';
         d.base.bottom = [60, 60];
         d.base.top = [56.6, 56.6];

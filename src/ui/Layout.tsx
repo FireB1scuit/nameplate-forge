@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { resolveFrustum } from '../state/schema';
-import { useStore, type CameraPreset, type MobileTab } from '../state/store';
+import { resolveBase } from '../state/schema';
+import { useStore, type CameraPreset, type MobileTab, type UiState } from '../state/store';
 import { Viewport } from '../viewer/Viewport';
-import { copyShareLink, exportStl, useToast } from './actions';
+import { copyShareLink, screenshot, useToast } from './actions';
+import { Dialogs } from './Dialogs';
 import { Chip } from './components/controls';
 import {
   BaseTabIcon,
@@ -21,22 +22,6 @@ import { StyleSection } from './panel/StyleSection';
 import { TextSection } from './panel/TextSection';
 import { PrintCheck } from './PrintCheck';
 import { usePrintSummary } from './printSummary';
-
-function useExport() {
-  const [busy, setBusy] = useState(false);
-  const run = async () => {
-    setBusy(true);
-    try {
-      await exportStl(useStore.getState().design);
-    } catch (e) {
-      console.error(e);
-      useToast.getState().show(`Export failed: ${e instanceof Error ? e.message : String(e)}`);
-    } finally {
-      setBusy(false);
-    }
-  };
-  return { busy, run };
-}
 
 /** Ctrl/Cmd+Z, Ctrl+Shift+Z / Ctrl+Y — but not while typing in a text field. */
 function useUndoKeys() {
@@ -73,7 +58,7 @@ function TopBar({ phone }: { phone: boolean }) {
   const canRedo = useStore((s) => s.history.future.length > 0);
   const undo = useStore((s) => s.undo);
   const redo = useStore((s) => s.redo);
-  const exp = useExport();
+  const setUi = useStore((s) => s.setUi);
   const share = () => void copyShareLink(useStore.getState().design);
 
   return (
@@ -108,8 +93,32 @@ function TopBar({ phone }: { phone: boolean }) {
           >
             <RedoIcon />
           </button>
+          <Chip
+            className="tall"
+            onClick={() => setUi({ dialog: 'presets' })}
+            title="Save and reuse styles"
+          >
+            Saved styles
+          </Chip>
+          <Chip
+            className="tall"
+            onClick={() => setUi({ dialog: 'batch' })}
+            title="A plate for every name in a squad"
+          >
+            Squad batch
+          </Chip>
+          <button
+            type="button"
+            className="ibtn"
+            aria-label="How to print and attach"
+            title="How to print and attach"
+            onClick={() => setUi({ dialog: 'help' })}
+          >
+            <b aria-hidden="true">?</b>
+          </button>
         </>
       )}
+      {phone && <PhoneMenu />}
       <Chip
         className="tall"
         onClick={share}
@@ -119,11 +128,82 @@ function TopBar({ phone }: { phone: boolean }) {
         <ShareIcon />
         {!phone && 'Share link'}
       </Chip>
-      <Chip className="tall primary" onClick={() => void exp.run()} disabled={exp.busy}>
+      <Chip className="tall primary" onClick={() => setUi({ dialog: 'export' })}>
         {!phone && <DownloadIcon />}
-        {exp.busy ? 'Exporting…' : phone ? 'Export' : 'Export STL'}
+        {phone ? 'Export' : 'Export…'}
       </Chip>
     </header>
+  );
+}
+
+/** Phone: secondary actions in a small menu. */
+function PhoneMenu() {
+  const setUi = useStore((s) => s.setUi);
+  const undo = useStore((s) => s.undo);
+  const canUndo = useStore((s) => s.history.past.length > 0);
+  const [open, setOpen] = useState(false);
+  const item = (label: string, run: () => void, disabled = false) => (
+    <button
+      type="button"
+      role="menuitem"
+      disabled={disabled}
+      onClick={() => {
+        setOpen(false);
+        run();
+      }}
+    >
+      {label}
+    </button>
+  );
+  return (
+    <div className="menu-wrap">
+      <button
+        type="button"
+        className="ibtn"
+        aria-label="More actions"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <b aria-hidden="true">⋯</b>
+      </button>
+      {open && (
+        <div className="menu" role="menu">
+          {item('Undo', undo, !canUndo)}
+          {item('Saved styles', () => setUi({ dialog: 'presets' }))}
+          {item('Squad batch', () => setUi({ dialog: 'batch' }))}
+          {item('Screenshot', () => void screenshot(useStore.getState().design))}
+          {item('How to print and attach', () => setUi({ dialog: 'help' }))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+type Toggle = keyof Pick<
+  UiState,
+  'showBase' | 'painted' | 'showFigure' | 'showRuler' | 'wireframe' | 'autoRotate'
+>;
+const TOGGLES: Array<[Toggle, string, string]> = [
+  ['showBase', 'Base', 'Show the base'],
+  ['painted', 'Painted', 'Text in a contrasting paint colour'],
+  ['showFigure', '28mm figure', 'A generic 28 mm figure for scale'],
+  ['showRuler', 'Ruler', 'Plate width and height'],
+  ['wireframe', 'Wireframe', 'Show the mesh triangles'],
+  ['autoRotate', 'Rotate', 'Slowly turn when idle'],
+];
+
+function ViewToggles({ only }: { only?: Toggle[] }) {
+  const ui = useStore((s) => s.ui);
+  const setUi = useStore((s) => s.setUi);
+  return (
+    <>
+      {TOGGLES.filter(([k]) => !only || only.includes(k)).map(([k, label, title]) => (
+        <Chip key={k} on={ui[k]} title={title} onClick={() => setUi({ [k]: !ui[k] })}>
+          {label}
+        </Chip>
+      ))}
+    </>
   );
 }
 
@@ -166,13 +246,17 @@ function BuildingIndicator() {
 
 function BaseSpec() {
   const base = useStore((s) => s.design.base);
-  const f = resolveFrustum(base);
+  const r = resolveBase(base);
   const edge = base.edge === 'vertical' ? 'flat MDF edge' : 'sloped rim';
-  const d = (r: number) => +(r * 2).toFixed(2);
+  const sz = (v: [number, number]) =>
+    r.shape === 'round' || r.shape === 'square'
+      ? `${+v[0].toFixed(2)}`
+      : `${+v[0].toFixed(2)}×${+v[1].toFixed(2)}`;
+  const name = r.shape === 'rect' ? 'Rectangle' : r.shape[0].toUpperCase() + r.shape.slice(1);
   return (
     <span>
-      Round {base.bottom[0]} mm · {edge} · top Ø {d(f.Rt)} / bottom Ø {d(f.Rb)} / {+f.H.toFixed(2)}{' '}
-      mm
+      {name} {sz(r.bottom)} mm · {edge} · top {sz(r.top)} / bottom {sz(r.bottom)} /{' '}
+      {+r.H.toFixed(2)} mm
     </span>
   );
 }
@@ -188,9 +272,6 @@ function Toast() {
 }
 
 export function DesktopLayout() {
-  const showBase = useStore((s) => s.ui.showBase);
-  const wireframe = useStore((s) => s.ui.wireframe);
-  const setUi = useStore((s) => s.setUi);
   useUndoKeys();
 
   return (
@@ -210,12 +291,13 @@ export function DesktopLayout() {
               <CameraButtons />
             </div>
             <div className="spacer" />
-            <div className="pill-group" role="group" aria-label="View toggles">
-              <Chip on={showBase} onClick={() => setUi({ showBase: !showBase })}>
-                Base
-              </Chip>
-              <Chip on={wireframe} onClick={() => setUi({ wireframe: !wireframe })}>
-                Wireframe
+            <div className="pill-group wrap" role="group" aria-label="View toggles">
+              <ViewToggles />
+              <Chip
+                title="Save the view as a PNG"
+                onClick={() => void screenshot(useStore.getState().design)}
+              >
+                PNG
               </Chip>
             </div>
           </div>
@@ -231,6 +313,7 @@ export function DesktopLayout() {
           </footer>
         </main>
       </div>
+      <Dialogs />
       <Toast />
     </div>
   );
@@ -268,6 +351,9 @@ export function PhoneLayout() {
             {summary.text}
           </button>
         )}
+        <div className="phone-toggles" role="group" aria-label="View toggles">
+          <ViewToggles only={['painted', 'showFigure']} />
+        </div>
         {showCheck && <PrintCheck className="print-check phone-check" />}
       </div>
       <div className="sheet">
@@ -299,6 +385,7 @@ export function PhoneLayout() {
           ))}
         </nav>
       </div>
+      <Dialogs />
       <Toast />
     </div>
   );

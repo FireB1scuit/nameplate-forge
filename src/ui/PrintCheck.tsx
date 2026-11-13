@@ -36,7 +36,48 @@ function useFix(w: BuildWarning): { label: string; run: () => void } | null {
       }
       return null;
     case 'clipped':
+    case 'too-wide':
       return { label: 'Auto width', run: () => update((d) => void (d.plate.width.mode = 'auto')) };
+    case 'thin-strokes':
+      if (design.text.thicken < 0.3) {
+        return {
+          label: 'Thicken strokes',
+          run: () =>
+            update(
+              (d) =>
+                void (d.text.thicken = Math.min(
+                  0.3,
+                  Math.round((d.text.thicken + 0.05) * 100) / 100,
+                )),
+            ),
+        };
+      }
+      return null;
+    case 'thin-border':
+      return {
+        label: 'Thicker border',
+        run: () =>
+          update(
+            (d) =>
+              void (d.style.border.width = useStore.getState().ui.printer === 'fdm' ? 0.8 : 0.3),
+          ),
+      };
+    case 'engrave-depth':
+      return {
+        label: 'Thicker plate',
+        run: () => update((d) => void (d.plate.thickness = Math.min(2.5, d.text.depth + 0.3))),
+      };
+    case 'fire-arc-outside':
+      return {
+        label: 'Widen plate',
+        run: () =>
+          update((d) => {
+            // a plate spanning the arc plus a little; auto width would stay text-sized
+            d.plate.width = { mode: 'deg', value: Math.min(330, d.extras.fireArc + 14) };
+          }),
+      };
+    case 'lip-unsupported':
+      return { label: 'Turn off lip', run: () => update((d) => void (d.plate.lip.on = false)) };
     case 'border-touch':
       return {
         label: 'Taller plate',

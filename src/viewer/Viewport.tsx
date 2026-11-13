@@ -4,9 +4,10 @@ import { useEffect, useRef } from 'react';
 import { PerspectiveCamera, Vector3 } from 'three';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import { getTheme } from '../data/themes';
-import { resolveFrustum } from '../state/schema';
+import { baseExtent, resolveBase } from '../state/schema';
 import { useStore } from '../state/store';
 import { BaseMesh } from './BaseMesh';
+import { AutoRotate, CaptureHook, Figure, Ruler } from './Extras';
 import { PlateMesh } from './PlateMesh';
 import { framePreset, type CameraPose, type FramingInput } from './sceneMath';
 
@@ -28,7 +29,10 @@ function CameraRig() {
   const nonce = useStore((s) => s.ui.camera.nonce);
   const base = useStore((s) => s.design.base);
   const anim = useRef<CameraAnim | null>(null);
-  const { Rb, Rt, H } = resolveFrustum(base);
+  const rb = resolveBase(base);
+  const Rb = baseExtent(base);
+  const Rt = Rb - (rb.bottom[0] - rb.top[0]) / 2;
+  const H = rb.H;
 
   useEffect(() => {
     const s = useStore.getState();
@@ -86,11 +90,12 @@ function CameraRig() {
 function Scene() {
   const design = useStore((s) => s.design);
   const result = useStore((s) => s.build.result);
-  const showBase = useStore((s) => s.ui.showBase);
-  const wireframe = useStore((s) => s.ui.wireframe);
-  const { Rb, Rt, H } = resolveFrustum(design.base);
+  const ui = useStore((s) => s.ui);
+  const base = resolveBase(design.base);
+  const Rb = baseExtent(design.base);
+  const H = base.H;
   const theme = getTheme(design.style.themeId);
-  const shadowScale = Rb * 3.2;
+  const shadowScale = Rb * 3.2 + (ui.showFigure ? 20 : 0);
 
   return (
     <>
@@ -130,12 +135,22 @@ function Scene() {
         />
       </Environment>
 
-      {showBase && <BaseMesh Rb={Rb} Rt={Rt} H={H} />}
-
-      {result && (
-        <group rotation={[-Math.PI / 2, 0, 0]}>
-          <PlateMesh mesh={result.mesh} material={theme.material} wireframe={wireframe} />
-        </group>
+      {/* geometry is Z-up world mm; rotate into three.js's Y-up scene */}
+      <group rotation={[-Math.PI / 2, 0, 0]}>
+        {ui.showBase && <BaseMesh base={base} />}
+        {result && (
+          <PlateMesh
+            mesh={result.mesh}
+            material={theme.material}
+            paint={theme.paint}
+            painted={ui.painted}
+            wireframe={ui.wireframe}
+          />
+        )}
+      </group>
+      {ui.showFigure && <Figure y={ui.showBase ? H : 0} />}
+      {ui.showRuler && result && (
+        <Ruler base={base} angleDeg={design.plate.angleDeg} stats={result.stats} />
       )}
 
       <ContactShadows
@@ -148,6 +163,8 @@ function Scene() {
         frames={Infinity}
       />
       <CameraRig />
+      <AutoRotate />
+      <CaptureHook />
       <OrbitControls makeDefault enableDamping dampingFactor={0.12} />
     </>
   );

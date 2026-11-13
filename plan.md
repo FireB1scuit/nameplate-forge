@@ -388,38 +388,38 @@ type UIState = { camera: 'front'|'side'|'top'|'iso'; showBase: boolean; showFigu
 - [x] Responsive layout: phone bottom sheet
 
 ### M2: Styles (≈ 1–2 weeks)
-- [ ] Theme data model + gallery dialog
-- [ ] Outlines: chamfer, pointed, scroll, leaf, jagged, plank, monument
-- [ ] Border: single, double, beaded
-- [ ] End-caps from bundled SVGs (SVG path → polygons) + custom SVG upload
-- [ ] Engraved + cut-through modes
-- [ ] Line 2 (rank)
-- [ ] Custom font upload
-- [ ] Per-theme viewer materials + painted preview
-- [ ] Min-stroke analysis + "thicken" fix
+- [x] Theme data model + gallery dialog — *9 themes; the design stores the layers, so each stays editable*
+- [x] Outlines: chamfer, pointed, scroll, leaf, jagged, plank, monument
+- [x] Border: single, double, beaded
+- [x] End-caps from bundled SVGs (SVG path → polygons) + custom SVG upload
+- [x] Engraved + cut-through modes
+- [x] Line 2 (rank)
+- [x] Custom font upload
+- [x] Per-theme viewer materials + painted preview
+- [x] Min-stroke analysis + "thicken" fix
 
 ### M3: Fit and more bases (≈ 1 week)
-- [ ] Measure and fill in base table (§6)
-- [ ] Oval mapping (arc-length LUT)
-- [ ] Square/rect face mapping
-- [ ] Blend-into-rim mode, top lip
-- [ ] Plate + base export
-- [ ] Ruler / dimension overlay, figure silhouette GLB
+- [ ] Measure and fill in base table (§6) — *still placeholders: needs calipers on real bases (no published measurements found). Added `.github/ISSUE_TEMPLATE/base-measurement.yml` so users can send them*
+- [x] Oval mapping (arc-length LUT)
+- [x] Square/rect face mapping
+- [x] Blend-into-rim mode, top lip — *lip on round/MDF bases only*
+- [x] Plate + base export
+- [x] Ruler / dimension overlay, figure silhouette — *built from primitives in code, not a GLB*
 
 ### M4: Power features (≈ 1 week)
-- [ ] Batch mode: paste list → table with per-row fit → ZIP / sprue
-- [ ] Flat-for-print orientation, sprue generator
-- [ ] 3MF multi-part export
-- [ ] Undo/redo, saved presets — *basic undo/redo done in M1 (own history in the zustand store, slider drags coalesced); saved presets still open*
-- [ ] Printer profiles (resin/FDM) drive defaults + warnings
+- [x] Batch mode: paste list → table with per-row fit → ZIP / sprue
+- [x] Flat-for-print orientation, sprue generator
+- [x] 3MF multi-part export
+- [x] Undo/redo, saved presets — *undo/redo in the store (M1); saved styles in localStorage*
+- [x] Printer profiles (resin/FDM) drive defaults + warnings
 
 ### M5: Polish (ongoing)
-- [ ] Fire-arc markers
-- [ ] Surface textures (displacement)
-- [ ] PWA/offline
-- [ ] Screenshot PNG, auto-rotate
-- [ ] Accessibility pass (keyboard on all controls, labels, contrast)
-- [ ] Docs page: "how to print and attach" (resin/FDM settings, glue tips, paint-on-sprue)
+- [x] Fire-arc markers — *notches in the plate's top edge*
+- [x] Surface textures (displacement)
+- [x] PWA/offline
+- [x] Screenshot PNG, auto-rotate
+- [x] Accessibility pass (keyboard on all controls, labels, contrast) — *labels, radio groups, focus-trapped dialogs, 44 px touch targets; no screen-reader or contrast audit tool was run*
+- [x] Docs page: "how to print and attach" (resin/FDM settings, glue tips, paint-on-sprue) — *an in-app dialog (the ? button), with the licences*
 
 ---
 
@@ -502,3 +502,73 @@ Recorded while building M0/M1 (2026-11-13). The plan above stays the spec; these
 - Vite 8 (rolldown) warns that manifold's `node:module` import is "externalized for browser compatibility". That code only runs under Node, so the warning is harmless.
 - The main JS chunk is about 1.07 MB (300 kB gzipped), mostly three.js and drei. Code-splitting is a later optimisation.
 - Tests: Vitest runs the real wasm and fonts in Node, covering conemap, URL/schema, STL and full builds across bases, fonts and themes. No Playwright suite is committed yet. Browser checks in this session were run by hand with a throwaway Playwright script against the system Chrome.
+
+---
+
+## 14. Implementation notes and deviations (M2–M5)
+
+Recorded 2026-11-13. As in §13, the plan above stays the spec and these notes cover where the code differs.
+
+**Data model:** schema **v2**. `migrations[1]` expands a v1 `style.themeId` into the theme's layers, so old share links still open. New fields: `text.line2/size2/mode/thicken/align`, `plate.width.mode 'deg'`, `plate.blend`, `plate.lip`, `style.outline/border/endCaps/surface`, `extras.fireArc`. The printer profile is a per-browser UI setting (localStorage), not part of the design.
+
+**Themes:** a theme is a preset of layers plus a font, a material and a paint colour (`data/themes.ts`). Picking one writes its layers into the design. Bordered themes raise the plate to 4.4 mm, capped at the rim's slant length. Gothic uses a single fine border, not a double one: a double border leaves only about 2 mm for letters on a 4.3 mm rim.
+
+**Outlines:** they are drawn round a "core" rectangle that holds the text. Decorative ends (pointed, scroll, leaf, plank, monument, jagged) extend past it by `outlineExtension()`. Only the largest connected piece of an outline is kept, which removes slivers from the jagged edge.
+
+**End-caps:** own geometric artwork in `public/endcaps/*.svg`, from a small generator script. Each piece is drawn as the left end cap and mirrored for the right. The worker parses SVG with regex (there is no DOM there): paths with every command, polygon, rect, circle, ellipse and fill-rule are supported. Transforms are ignored, with a warning. 'Rivet' is a 3D dome, not artwork.
+
+**Text modes:**
+- Engraved: the recess depth is capped so 0.3 mm of plate stays behind it.
+- Cut-through: loose islands (letter centres such as the inside of O) are removed, with a note.
+
+**Line 2:**
+- Both lines shrink together.
+- If two lines don't fit, the plate grows.
+- A plate taller than the rim stands up above the base top; it never hangs below the base, which would put it into the table.
+- Auto-shrink now also fits the text block vertically inside a border.
+
+**Stroke check:** each glyph is eroded by half the printer's minimum and grown back with mitred corners. A glyph is flagged if it loses more than 12% of its area (`STROKE_LOSS`). 4% flagged almost every serif at resin's 0.3 mm. The fix button adds 0.05 mm of thicken.
+
+**Painted preview / 3MF:** text and decoration solids are marked with `asOriginal()`. Their triangles keep that ID through every boolean, the refine and the warp, so the viewer draws them as a second material group. 3MF export builds the plate and the details as separate solids instead.
+
+**Oval mapping:**
+- The layout is a rectangle: X is the arc length at the point's own height, Y is the distance up the slant.
+- X is converted to the ellipse parameter with a 4096-entry lookup table on the mid-height ellipse.
+- The perimeter is scaled to each height with Ramanujan's approximation.
+- There is a small shear where the curvature changes fast; plates longer than 30% of the perimeter get a note.
+
+**Square / rectangular bases:** an exact plane map onto one face, chosen by the position angle snapped to 90°. Width in degrees is defined so that 90° = one whole side. Plates wider than the side are trimmed, with a warning.
+
+**Blend into rim:** the plate covers the whole slant, and its thickness tapers to 0.15 mm over the last ≤1.2 mm at every edge. The taper is applied in the warp. It's a glue-on plate that looks built in, not a cut into the base.
+
+**Top lip:** a revolved profile in world space that wraps the rim's top edge (following the fit gap) and overlaps the plate by 0.5 mm. Round and MDF bases only.
+
+**Fire arc:** V notches in the plate's top edge at ±arc/2. If they fall outside the plate, a note appears with a "Widen plate" fix.
+
+**Surface textures:** a deterministic downward displacement (≤0.1 mm) of the plate's top face, applied in the warp. Refinement goes down to 0.3 mm (preview) / 0.2 mm (export) when a texture is on.
+
+**Export:**
+- Flat-for-print rotates the plate so its central outward normal points +Z, then drops it to z = 0.
+- Plate + base unions with a convex hull of the base rings, using a −0.05 mm gap so the two fuse.
+- The 3MF base is a third object.
+- Sprue: plates in one column, a frame of 1.2 mm bars, and capsule gates (hull of two 0.5 mm spheres).
+- Batch is limited to 60 rows.
+
+**Figure / ruler:**
+- The 28 mm figure is built from capsules and spheres in code (about 32 mm to the top of the head), not a GLB.
+- The ruler draws drei `Line` and `Html` labels: an arc on round and oval bases, a straight line on square ones.
+
+**PWA:** a hand-written `public/sw.js`, registered in production only:
+- network-first for navigations;
+- cache-first for same-origin assets, filled as they load, so the app works offline after one visit.
+
+The PNG icons are rendered from `favicon.svg`.
+
+**Fonts:** IM Fell English SC, New Rocker and Metamorphous were added (OFL, each with its licence), so all eight fonts from §7 ship. Uploaded fonts and SVGs live in memory only: they are lost on reload, and share links fall back to the defaults (the toast says so).
+
+**Tests:**
+- 90 Vitest tests, including every theme, every outline × border, all three text modes, both maps, the extras, every export type and the SVG parser.
+- `npm run e2e` runs a Playwright smoke test against the system Chrome. It is not part of CI.
+- Windows note: run Vitest from an upper-case drive path (`E:\…`). A lower-case `e:` makes Vite load Vitest twice, and every suite then fails with "failed to find the runner".
+
+**Still open:** real base measurements (§6), a contrast or screen-reader audit, persisting uploaded fonts, and multiple plates per base (P2).

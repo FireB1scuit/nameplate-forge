@@ -37,14 +37,22 @@ export interface Frame2 {
 }
 
 export interface RimMap {
-  readonly kind: 'cone' | 'cylinder';
+  readonly kind: 'cone' | 'cylinder' | 'oval' | 'plane';
   readonly frustum: Frustum;
   /** slant length of the rim (mm); equals H for a cylinder */
   readonly slant: number;
   /** placement angle around the base (radians) */
   readonly angle: number;
-  /** world radius of the rim at slant height v */
+  /** world radius of the rim at slant height v (mean radius for ovals, face half-width for planes) */
   radiusAt(v: number): number;
+  /** arc length (mm) on the rim at slant height v that spans `deg` degrees of the base */
+  arcForDeg(deg: number, v: number): number;
+  /** inverse of arcForDeg */
+  arcToDeg(arc: number, v: number): number;
+  /** longest plate (arc length at slant height v) this surface can take */
+  maxArc(v: number): number;
+  /** Inverse of bend: flat layout point -> straight plate frame (u at refV, v). */
+  unbend(X: number, Y: number, refV: number): Vec2;
   /**
    * Bend a point from the straight plate frame into flat layout space.
    * `u` is measured as arc length on the circle at slant height `refV`.
@@ -61,6 +69,9 @@ export interface RimMap {
   /** Outward unit surface normal at azimuth α (relative to the plate centre). */
   normalAt(theta: number): Vec3;
 }
+
+/** Never let a plate wrap more than this much of a round rim. */
+export const MAX_WRAP_DEG = 330;
 
 /** Below this |Rb − Rt| (mm) the rim is treated as a vertical cylinder (MDF edge). */
 export const CYLINDER_EPS = 1e-3;
@@ -99,6 +110,13 @@ function coneMap(frustum: Frustum, angle: number): RimMap {
     slant: s,
     angle,
     radiusAt: (v) => Rb - (v * (Rb - Rt)) / s,
+    arcForDeg: (deg, v) => ((deg * Math.PI) / 180) * (Rb - (v * (Rb - Rt)) / s),
+    arcToDeg: (arc, v) => ((arc / (Rb - (v * (Rb - Rt)) / s)) * 180) / Math.PI,
+    maxArc: (v) => ((MAX_WRAP_DEG * Math.PI) / 180) * (Rb - (v * (Rb - Rt)) / s),
+    unbend(X, Y, refV) {
+      const ρ = Math.hypot(X, Y);
+      return [Math.atan2(X, -Y) * (ρb - refV), ρb - ρ];
+    },
     bend(u, v, refV) {
       const ρ = ρb - v;
       const φ = u / (ρb - refV);
@@ -148,6 +166,10 @@ function cylinderMap(frustum: Frustum, angle: number): RimMap {
     slant: H,
     angle,
     radiusAt: () => R,
+    arcForDeg: (deg) => ((deg * Math.PI) / 180) * R,
+    arcToDeg: (arc) => ((arc / R) * 180) / Math.PI,
+    maxArc: () => ((MAX_WRAP_DEG * Math.PI) / 180) * R,
+    unbend: (X, Y) => [X, Y],
     bend: (u, v) => [u, v],
     frameAt: (arc, v) => ({ x: arc, y: v, rot: 0 }),
     scaleArc: (arc) => arc,
@@ -170,5 +192,9 @@ function cylinderMap(frustum: Frustum, angle: number): RimMap {
 
 /** Arc length (mm) of `deg` degrees of rim at slant height v. */
 export function degToArc(map: RimMap, deg: number, v: number): number {
-  return ((deg * Math.PI) / 180) * map.radiusAt(v);
+  return map.arcForDeg(deg, v);
+}
+
+export function wrapAngle(a: number): number {
+  return wrapPi(a);
 }

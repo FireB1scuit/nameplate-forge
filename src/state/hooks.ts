@@ -19,10 +19,10 @@ export function useLiveBuild(): void {
       clearTimeout(timer);
       timer = setTimeout(() => {
         const id = ++latestId;
-        const { design, setBuild } = useStore.getState();
+        const { design, setBuild, ui } = useStore.getState();
         setBuild({ status: 'building' });
         geometry()
-          .build(id, design)
+          .build(id, design, ui.printer)
           .then((result) => {
             if (result.id !== latestId) return; // stale
             setBuild({ status: 'ready', result, error: null });
@@ -37,7 +37,13 @@ export function useLiveBuild(): void {
 
     request();
     const unsub = useStore.subscribe((s, prev) => {
-      if (s.design !== prev.design) request();
+      if (
+        s.design !== prev.design ||
+        s.ui.printer !== prev.ui.printer ||
+        s.ui.assetsVersion !== prev.ui.assetsVersion
+      ) {
+        request();
+      }
     });
     return () => {
       unsub();
