@@ -1,0 +1,7 @@
+dist
+coverage
+node_modules
+public/fonts
+package-lock.json
+plan.md
+README.md
