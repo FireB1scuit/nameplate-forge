@@ -1,0 +1,48 @@
+Build the "Nameplate Forge" app described in plan.md (in this folder). Read plan.md fully before writing any code — it is the spec.
+
+WHAT IT IS
+A free, browser-only single-page app (deployed on GitHub Pages) that generates 3D-printable nameplates that wrap the sloped rim of wargaming miniature bases. The 3D viewer is the centrepiece: the user always sees the plate on the actual base and can orbit around it. When done, they download an STL.
+
+VISUAL DESIGN
+The UI mockups are on this canvas: https://claude.ai/artifact/6vnLvffFBKNFAVFZNAZq6G
+Read it with the Artifact tool (action "read"; read the files project/Main.dc.html, project/Styles.dc.html, project/Export.dc.html, project/Mobile.dc.html). Match the layout and visual language:
+- Dark "forge" theme: ground #0F1012, panels #17181C, raised #1F2026, border #2C2E36, text #ECEAE4, muted #A09FA8, brass accent #D4A853 (text on accent #1A1408), ok #6FCF97, warn #E8B04A.
+- Cinzel for wordmark/headings only, Inter for all UI.
+- Desktop: top bar (logo, design name, undo/redo, Share link, primary Export) + left panel with numbered sections (1 Base, 2 Text, 3 Style, 4 Plate & placement, Advanced collapsed) + viewport filling the rest (camera presets top-left, view toggles top-right, print-check card bottom-right, footer with hints and base spec).
+- Phone: viewport on top (~40%), bottom sheet with tab bar Base / Text / Style / Plate. Touch targets >= 44px.
+
+DECISIONS ALREADY MADE (open questions in plan.md §11 — use these defaults unless I say otherwise)
+- Framework: React 18 + TypeScript (strict) + Vite, three.js via @react-three/fiber + drei, zustand for state.
+- Geometry: manifold-3d (WASM) running in a Web Worker via Comlink; opentype.js for fonts. Follow the cone-unrolling math in plan.md §5.3 exactly (text laid out glyph-by-glyph along an arc in the unrolled sector, then warped onto the frustum; MDF/vertical edge = cylinder special case).
+- Printer default: resin (min feature 0.3 mm), with FDM (0.8 mm) as an option later.
+- Scope for this session: glue-on plates only (no whole-base export yet).
+- App name (final): "Nameplate Forge"; repo name (final): "nameplate-forge" (Vite base: '/nameplate-forge/'). Do not use "Warhammer" in the app name or ship any Games Workshop fonts/logos.
+- Pin exact dependency versions.
+
+SCOPE FOR THIS SESSION: milestones M0 + M1 from plan.md §8
+M0 Skeleton
+- Vite React-TS project in this folder, ESLint + Prettier.
+- Worker + Comlink + manifold-3d wasm loading working in BOTH `npm run dev` and `npm run build && npm run preview` (solve this first — it is the biggest technical risk).
+- r3f canvas: OrbitControls, lights (no CDN-fetched environment maps), contact shadow, base drawn as a LatheGeometry frustum.
+- .github/workflows/deploy.yml for GitHub Pages (test -> build -> upload-pages-artifact -> deploy-pages).
+
+M1 MVP
+- state/schema.ts (Design type + defaults + version field), zustand store.
+- data/bases.ts with round presets 25/28.5/32/40/50/60/80/90/100/130/160 + custom (bottom Ø, top Ø, height) + edge type sloped/vertical. Top diameters/heights are NOT yet measured: use the placeholder rule from plan.md §6 and mark them clearly as TODO.
+- geometry/conemap.ts with Vitest unit tests (round trip, cylinder case, known points).
+- geometry/text.ts: load bundled OFL TTF fonts (start with Cinzel, UnifrakturCook, Pirata One, Orbitron — download from the Google Fonts GitHub repo into public/fonts with their OFL.txt), cap-height scaling, kerning, glyph-on-arc layout, NonZero CrossSection.
+- geometry/outline.ts: rect + rounded rect; plus the "Riveted" look (inset border + rivets) so there are 2 themes: Plain and Riveted.
+- geometry/build.ts: raised-text pipeline -> refine -> warp -> mesh arrays transferred back to the UI; debounce ~100 ms and ignore stale results.
+- Panel controls: base (shape chips, size chips, sloped/MDF), text (line 1, font select previewed in its own face, letter height, spacing, raised), plate (auto/fixed width, height, thickness, position angle, fit gap), style (Plain / Riveted).
+- Fit indicator ("x / y chars fit") + auto-shrink.
+- Camera presets Front / Side / Top / Iso / Fit; toggle base visibility.
+- Print-check card: watertight status, triangle count, bounding box, readability warning (< 3 mm letters).
+- Binary STL export (plate in place, mm units).
+- Share link: design diff vs defaults -> lz-string -> URL hash, and restore on load.
+- Responsive phone layout (bottom sheet + tabs).
+
+WORKING RULES
+- This folder is already a git clone of https://github.com/FireB1scuit/nameplate-forge (branch main; first commit holds plan.md, this prompt, README and .gitignore). Commit at sensible checkpoints, and ask me before pushing or changing repo settings (e.g. enabling GitHub Pages).
+- Run the tests and a production build before saying something works; run the app and check it in a browser if you can, and tell me honestly what you verified and what you didn't.
+- Keep plan.md as the source of truth: tick off checklist items in §8 as you complete them, and note any deviations from the plan there.
+- When M1 is done, summarise what works, what is stubbed, and what the next milestone (M2: styles) needs.
