@@ -367,25 +367,25 @@ type UIState = { camera: 'front'|'side'|'top'|'iso'; showBase: boolean; showFigu
 ## 8. Milestones and task checklist
 
 ### M0: Skeleton (≈ 1–2 days)
-- [ ] `npm create vite` (React + TS). ESLint + Prettier. Pin versions
-- [ ] GitHub repo + Pages deploy workflow. Hello-world live
-- [ ] Worker + Comlink + manifold-3d wasm loading in the worker (dev + prod build)
-- [ ] r3f canvas with OrbitControls, lights, contact shadow, lathe base mesh
+- [x] `npm create vite` (React + TS). ESLint + Prettier. Pin versions
+- [ ] GitHub repo + Pages deploy workflow. Hello-world live — *workflow written (`.github/workflows/deploy.yml`); not live yet: needs a push and Pages enabled (Settings → Pages → Source: GitHub Actions)*
+- [x] Worker + Comlink + manifold-3d wasm loading in the worker (dev + prod build) — *verified in Chrome on `npm run dev` and `npm run build && npm run preview`*
+- [x] r3f canvas with OrbitControls, lights, contact shadow, lathe base mesh
 
 ### M1: MVP: round base, plain plate, STL (≈ 1 week)
-- [ ] `schema.ts` defaults + zustand store
-- [ ] `conemap.ts` with unit tests (round-trip, cylinder special case, known points)
-- [ ] `text.ts`: opentype load, glyph-on-arc layout, CrossSection union, cap-height scaling
-- [ ] `outline.ts`: rect + rounded
-- [ ] `build.ts`: raised text pipeline → warp → mesh arrays
-- [ ] Panel sections: Base (round presets + custom + edge type), Text (line 1, font, height, spacing, raised), Plate (auto/fixed width, height, thickness, angle, gap)
-- [ ] Live rebuild with debounce + stale-result guard
-- [ ] Fit indicator + auto-shrink
-- [ ] Camera presets
-- [ ] STL export (in place)
-- [ ] Share link (URL hash)
-- [ ] Print check: watertight + stats + readability warning
-- [ ] Responsive layout: phone bottom sheet
+- [x] `schema.ts` defaults + zustand store
+- [x] `conemap.ts` with unit tests (round-trip, cylinder special case, known points)
+- [x] `text.ts`: opentype load, glyph-on-arc layout, CrossSection union, cap-height scaling
+- [x] `outline.ts`: rect + rounded (+ Riveted border and rivets, pulled forward from M2)
+- [x] `build.ts`: raised text pipeline → warp → mesh arrays
+- [x] Panel sections: Base (round presets + custom + edge type), Text (line 1, font, height, spacing, raised), Plate (auto/fixed width, height, thickness, angle, gap)
+- [x] Live rebuild with debounce + stale-result guard
+- [x] Fit indicator + auto-shrink
+- [x] Camera presets
+- [x] STL export (in place)
+- [x] Share link (URL hash)
+- [x] Print check: watertight + stats + readability warning
+- [x] Responsive layout: phone bottom sheet
 
 ### M2: Styles (≈ 1–2 weeks)
 - [ ] Theme data model + gallery dialog
@@ -410,7 +410,7 @@ type UIState = { camera: 'front'|'side'|'top'|'iso'; showBase: boolean; showFigu
 - [ ] Batch mode: paste list → table with per-row fit → ZIP / sprue
 - [ ] Flat-for-print orientation, sprue generator
 - [ ] 3MF multi-part export
-- [ ] Undo/redo, saved presets
+- [ ] Undo/redo, saved presets — *basic undo/redo done in M1 (own history in the zustand store, slider drags coalesced); saved presets still open*
 - [ ] Printer profiles (resin/FDM) drive defaults + warnings
 
 ### M5: Polish (ongoing)
@@ -462,3 +462,43 @@ type UIState = { camera: 'front'|'side'|'top'|'iso'; showBase: boolean; showFigu
 - [B&C: nameplates for your miniatures](https://bolterandchainsword.com/topic/380981-nameplates-for-your-miniatures-newbie/)
 - [PrintPal Name Plate Generator](https://printpal.io/tools/name-plate-generator)
 - [minibase (OpenSCAD)](https://github.colasdn.workers.dev/unjordy/minibase)
+
+---
+
+## 13. Implementation notes and deviations (M0 + M1)
+
+Recorded while building M0/M1 (2026-11-13). The plan above stays the spec; these notes say where the code differs and why.
+
+**Geometry**
+- **Flat layout orientation (§5.3):** the plate is centred on the **−Y** axis of the unrolled sector, not +Y. With +Y, "up the slant" points to −Y, which makes the (along-rim, up-slant) frame left-handed, so text would come out mirrored. With −Y, +X is the reading direction and +Y is up the slant, so glyphs are placed without any flip. φ is therefore `atan2(X, −Y)`.
+- **World frame:** geometry is Z-up in mm (what slicers expect). Azimuth 0 = the front of the base = world −Y, and positive angles move towards +X (the viewer's right). The viewer rotates the plate group −90° about X into three.js's Y-up.
+- **Rims that flare outwards** (top Ø > bottom Ø) are rejected; the sanitiser clamps top ≤ bottom.
+- **Plate width** (auto and fixed) is measured on the circle at the plate's mid height. Text width is measured on the baseline circle and converted with the ratio of the radii.
+- **Refinement:** `refineToLength` 0.4 mm for the live preview and 0.25 mm for export. Curve flattening tolerance is 0.01 mm (preview) and 0.005 mm (export).
+- **Raised layer** = (text ∪ border ring) ∩ plate outline, so text can never hang off the plate. It overlaps the plate by 0.01 mm, which keeps the 3D union robust.
+- **Riveted theme** (pulled forward from M2 so M1 has two themes): a raised inset border ring made by offsetting the bent outline in flat space (exact, because the flat layout is an isometry of the rim), plus dome rivets (a flattened sphere, trimmed at the plate surface). There are 2 rivets per end when the plate is tall enough, otherwise 1. The text margin grows to clear the rivets and the border.
+- **Performance:** the default plate is about 31k triangles and builds in about 70 ms in Node and 100–140 ms in Chrome (§5.6 target: < 150 ms).
+
+**Fonts**
+- **Cap height** is measured from the outline of the 'H' glyph. `OS/2.sCapHeight` is only a fallback (then 0.7 em) because some fonts report it wrongly: UnifrakturCook says 485/2048.
+- **Variable fonts** (Cinzel, Orbitron) are instanced at `wght 700` via `font.variation.getTransform`, with the HVAR advance applied, so plates use the bold cut. Note that opentype.js writes the instanced advance back onto the cached glyph.
+- **Font picker:** a 2×2 grid of buttons, each rendered in its own typeface, instead of a `<select>`. Option-level font styling in native selects is unreliable, and the grid is easier to use on touch screens.
+
+**Data model (§5.7)**
+- Only implemented fields are stored. `line2`, `thicken`, `align`, `blend`, `lip` and the style sub-layers will be added when they are built, so shared links stay short and every stored field means something.
+- Added `text.autoShrink`, `plate.maxDeg` (the auto-width cap) and `text.size1` (cap height in mm). `plate.width.mode` is `'auto' | 'mm'`; the `'deg'` mode is not built yet.
+- **Default max auto width is 140° of rim, not 90°** (§5.5). At 90°, the default "BROTHER KAI" at 2.8 mm would not fit a 32 mm base and would be auto-shrunk to about 2 mm. 140° matches the mockup (a 34 mm plate on a 32 mm base). It can be adjusted (30–300°) in the Plate section.
+- **Base presets:** top Ø and height use the §6 placeholder rule and are marked `unmeasured` / TODO in `src/data/bases.ts`. The UI says they are estimates. For a preset with a flat MDF edge, the height is 3.0 mm.
+
+**UI**
+- **Undo/redo** is built into the store instead of using zundo: up to 100 steps, with rapid edits of the same control coalesced. Keyboard: Ctrl+Z, Ctrl+Shift+Z / Ctrl+Y.
+- **View toggles:** Base and Wireframe. The 28 mm figure, Painted and Ruler toggles are left out until they exist (M2/M3).
+- **Disabled placeholders:** Oval and Square base shapes, Engraved and Cut-through text, and the FDM printer profile are shown but disabled, with a tooltip saying they come later.
+- **The URL hash** updates live (debounced), so reloading keeps the design. The default design keeps a clean URL.
+- **Self-hosted fonts:** Inter (UI) and Cinzel (headings) are registered at runtime from `public/fonts` using `import.meta.env.BASE_URL`. Nothing is loaded from Google's CDN.
+- **Viewer lighting** uses drei `Environment` built from `Lightformer`s (no HDR download), with a hemisphere light and two directional lights.
+
+**Build/tooling**
+- Vite 8 (rolldown) warns that manifold's `node:module` import is "externalized for browser compatibility". That code only runs under Node, so the warning is harmless.
+- The main JS chunk is about 1.07 MB (300 kB gzipped), mostly three.js and drei. Code-splitting is a later optimisation.
+- Tests: Vitest runs the real wasm and fonts in Node, covering conemap, URL/schema, STL and full builds across bases, fonts and themes. No Playwright suite is committed yet. Browser checks in this session were run by hand with a throwaway Playwright script against the system Chrome.
